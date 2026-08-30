@@ -7,11 +7,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    // Dynamic host matching for resilient WebSocket connection across localhost, 127.0.0.1, or local IP
+    // Dynamic host matching or custom production socket URL
+    const customSocketUrl = (import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '').trim();
     const host = window.location.hostname || 'localhost';
-    const socketUrl = window.location.port === '5000' 
-      ? window.location.origin 
-      : `${window.location.protocol}//${host}:5000`;
+    const socketUrl = customSocketUrl
+      ? customSocketUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '')
+      : (window.location.port === '5000' 
+          ? window.location.origin 
+          : `${window.location.protocol}//${host}:5000`);
 
     const socketInstance = io(socketUrl, {
       transports: ['websocket', 'polling'],

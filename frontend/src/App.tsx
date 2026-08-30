@@ -119,11 +119,15 @@ function App() {
                   }
                 />
 
-                {/* Customer Order Submission */}
+                {/* Customer Order Submission (Direct & QR links) */}
                 <Route path="/shop/:shopId/submit" element={<SubmitOrder />} />
+                <Route path="/shop/:shopId" element={<SubmitOrder />} />
+                <Route path="/qr/:shopId/submit" element={<SubmitOrder />} />
+                <Route path="/qr/:shopId" element={<SubmitOrder />} />
 
                 {/* Customer Order Status Page */}
                 <Route path="/shop/:shopId/order/:orderId" element={<OrderStatus />} />
+                <Route path="/order/:orderId" element={<OrderStatus />} />
 
                 {/* Owner Dashboard Layout (Private) */}
                 <Route
