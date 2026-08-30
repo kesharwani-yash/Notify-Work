@@ -1,0 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-50: #ecfdf5;
+  --color-brand-100: #d1fae5;
+  --color-brand-200: #a7f3d0;
+  --color-brand-300: #6ee7b7;
+  --color-brand-400: #34d399;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059669;
+  --color-brand-700: #047857;
+  --color-brand-800: #065f46;
+  --color-brand-900: #064e3b;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --shadow-soft: 0 2px 10px 0 rgba(0, 0, 0, 0.03);
+  --shadow-premium: 0 10px 30px -10px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+@utility glass {
+  background-color: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-width: 1px;
+  border-color: rgba(228, 228, 231, 0.6);
+}
+
+@utility glass-card {
+  background-color: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-width: 1px;
+  border-color: rgba(228, 228, 231, 0.6);
+}
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+  
+  body {
+    background-color: #FAFAFA;
+    color: #09090B;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  .dark body {
+    background-color: #09090B;
+    color: #FAFAFA;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.025em;
+    font-family: var(--font-sans);
+  }
+}
+
+.gradient-bg {
+  background-image: radial-gradient(at 0% 0%, hsla(160, 84%, 93%, 0.2) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, hsla(140, 70%, 94%, 0.15) 0px, transparent 50%);
+}
+
+.dark .gradient-bg {
+  background-image: radial-gradient(at 0% 0%, hsla(160, 40%, 10%, 0.3) 0px, transparent 50%),
+                    radial-gradient(at 100% 0%, hsla(140, 40%, 8%, 0.25) 0px, transparent 50%);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Dropdown entrance animation */
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-in {
+  animation: slideDownFade 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes swing {
+  0%, 100% { transform: rotate(0deg); }
+  20%       { transform: rotate(12deg); }
+  40%       { transform: rotate(-10deg); }
+  60%       { transform: rotate(8deg); }
+  80%       { transform: rotate(-6deg); }
+}
+
+.animate-swing {
+  animation: swing 0.8s ease-in-out infinite;
+}

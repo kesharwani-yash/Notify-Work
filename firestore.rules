@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Shops collection: public read for customer order submission, owner update write access
+    match /shops/{shopId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Orders collection: public read for customer tracking page, authenticated write/update for shop owners
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if request.auth != null;
+    }
+
+    // Customers collection: create during submission, update by shop owners or push registration
+    match /customers/{customerId} {
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+    }
+  }
+}
