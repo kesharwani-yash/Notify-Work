@@ -45,8 +45,8 @@ const DEFAULT_SCHEMA: BusinessSchema = {
   presets: [],
 };
 
-function getSchema(businessType: string): BusinessSchema {
-  const key = businessType.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+function getSchema(businessType?: string): BusinessSchema {
+  const key = (businessType || 'Flour Mill').toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
   return BUSINESS_SCHEMAS[key] ?? DEFAULT_SCHEMA;
 }
 
@@ -241,8 +241,8 @@ export const SubmitOrder: React.FC = () => {
     );
   }
 
-  const schema = getSchema(shop.businessType);
-  const shopServices = shop.services && shop.services.length > 0 ? shop.services : null;
+  const schema = getSchema(shop?.businessType);
+  const shopServices = shop?.services && shop.services.length > 0 ? shop.services : null;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 gradient-bg flex flex-col items-center justify-center px-4 py-10 transition-colors relative">

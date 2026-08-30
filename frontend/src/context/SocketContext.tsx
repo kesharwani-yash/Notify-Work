@@ -7,14 +7,18 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    // Dynamic host matching or custom production socket URL
-    const customSocketUrl = (import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '').trim();
-    const host = window.location.hostname || 'localhost';
-    const socketUrl = customSocketUrl
-      ? customSocketUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '')
-      : (window.location.port === '5000' 
-          ? window.location.origin 
-          : `${window.location.protocol}//${host}:5000`);
+    // Strictly resolve socket URL: use VITE_SOCKET_URL or VITE_API_URL if configured,
+    // otherwise fallback to localhost:5000 only in local dev, or window.location.origin in production
+    const rawUrl = (import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '').trim();
+    let socketUrl = '';
+
+    if (rawUrl) {
+      socketUrl = rawUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+    } else if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      socketUrl = 'http://localhost:5000';
+    } else {
+      socketUrl = window.location.origin;
+    }
 
     const socketInstance = io(socketUrl, {
       transports: ['websocket', 'polling'],

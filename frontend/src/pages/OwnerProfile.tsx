@@ -54,16 +54,20 @@ export const OwnerProfile: React.FC = () => {
     try {
       setLoading(true);
       const data = await api.get('/shop/profile');
-      setShopName(data.shopName || '');
-      setOwnerName(data.ownerName || '');
-      setPhone(data.phone || '');
-      setAddress(data.address || '');
-      setOperatingHours(data.operatingHours || '9:00 AM - 8:00 PM');
-      setBusinessType(data.businessType || 'Flour Mill');
-      setShopIdSlug(data.shopId || '');
+      setShopName(data?.shopName || 'My Shop');
+      setOwnerName(data?.ownerName || 'Owner');
+      setPhone(data?.phone || '');
+      setAddress(data?.address || '');
+      setOperatingHours(data?.operatingHours || '9:00 AM - 8:00 PM');
+      setBusinessType(data?.businessType || 'Flour Mill');
+      setShopIdSlug(data?.slug || data?.shopId || '');
 
-      if (data.services && Array.isArray(data.services)) {
-        setServices(data.services);
+      if (data?.services && Array.isArray(data.services)) {
+        setServices(data.services.map((s: any) => ({
+          name: s?.name || '',
+          unit: s?.unit || 'kg',
+          rate: typeof s?.rate === 'number' ? s.rate : (parseFloat(s?.rate) || 0)
+        })));
       }
     } catch (err: any) {
       console.error('Failed to load shop profile:', err);

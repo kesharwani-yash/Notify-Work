@@ -24,9 +24,9 @@ export const Login: React.FC = () => {
   const businessType = 'Flour Mill';
 
   /** Auto-generate slug from shop name */
-  const handleSlugify = (name: string) => {
+  const handleSlugify = (name?: string) => {
     setShopId(
-      name
+      (name || '')
         .toLowerCase()
         .trim()
         .replace(/[^a-z0-9\s-]/g, '')

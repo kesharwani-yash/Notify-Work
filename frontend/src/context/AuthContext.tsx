@@ -62,7 +62,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Backend profile GET fallback to in-memory user details:', err);
       if (auth.currentUser) {
         const fallbackEmail = auth.currentUser.email || 'owner@notifywork.com';
-        const fallbackSlug = fallbackEmail.split('@')[0].toLowerCase();
+        const rawPrefix = (fallbackEmail.split('@')[0] || 'owner').toLowerCase();
+        const fallbackSlug = rawPrefix || 'owner';
         const fallbackShop: Shop = {
           id: auth.currentUser.uid,
           shopId: `${fallbackSlug}-shop`,
