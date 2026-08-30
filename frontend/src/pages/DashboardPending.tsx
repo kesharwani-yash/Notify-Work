@@ -47,9 +47,10 @@ export const DashboardPending: React.FC = () => {
     try {
       if (showSpinner) setLoading(true);
       const data = await api.get('/dashboard/pending');
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error fetching pending orders:', err);
+      setOrders([]);
     } finally {
       if (showSpinner) setLoading(false);
     }
@@ -270,7 +271,7 @@ export const DashboardPending: React.FC = () => {
           <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mb-3" />
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Loading pending requests...</p>
         </div>
-      ) : orders.length === 0 ? (
+      ) : (!Array.isArray(orders) || orders.length === 0) ? (
         /* Empty state */
         <div className="flex flex-col items-center justify-center py-16 px-4 bg-zinc-50/50 dark:bg-zinc-900/30 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl text-center">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3">
@@ -285,7 +286,7 @@ export const DashboardPending: React.FC = () => {
         /* Orders Grid */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <AnimatePresence>
-            {orders.map((order) => {
+            {(Array.isArray(orders) ? orders : []).map((order) => {
               const isHighlighted = highlightId === order._id;
               return (
                 <motion.div

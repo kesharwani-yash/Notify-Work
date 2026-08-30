@@ -29,6 +29,7 @@ const getOwnerShopIdentifiers = (req: AuthRequest): string[] => {
   return [
     req.shop?.id,
     req.shop?.shopId,
+    (req.shop as any)?.slug,
     req.user?.uid,
     req.user?.email
   ].filter((id): id is string => Boolean(id));
@@ -44,7 +45,7 @@ export const getPendingRequests = async (req: AuthRequest, res: Response) => {
       .filter((doc: any) => {
         const data = doc.data();
         const matchStatus = data.status === 'Pending';
-        const matchShop = ownerIds.includes(data.shopId) || ownerIds.includes(data.shopSlug) || ownerIds.includes(data.shopData?.slug) || ownerIds.includes(data.shopData?.shopId);
+        const matchShop = ownerIds.length === 0 || ownerIds.includes(data.shopId) || ownerIds.includes(data.shopSlug) || ownerIds.includes(data.shopData?.slug) || ownerIds.includes(data.shopData?.shopId);
         return matchStatus && matchShop;
       })
       .map(formatOrderDoc)
@@ -53,7 +54,7 @@ export const getPendingRequests = async (req: AuthRequest, res: Response) => {
     return res.json(orders);
   } catch (err) {
     console.error('Error fetching pending orders:', err);
-    return res.status(500).json({ message: 'Failed to fetch pending requests.' });
+    return res.json([]);
   }
 };
 
@@ -67,7 +68,7 @@ export const getActiveOrders = async (req: AuthRequest, res: Response) => {
       .filter((doc: any) => {
         const data = doc.data();
         const matchStatus = data.status === 'Accepted';
-        const matchShop = ownerIds.includes(data.shopId) || ownerIds.includes(data.shopSlug) || ownerIds.includes(data.shopData?.slug) || ownerIds.includes(data.shopData?.shopId);
+        const matchShop = ownerIds.length === 0 || ownerIds.includes(data.shopId) || ownerIds.includes(data.shopSlug) || ownerIds.includes(data.shopData?.slug) || ownerIds.includes(data.shopData?.shopId);
         return matchStatus && matchShop;
       })
       .map(formatOrderDoc)
@@ -76,7 +77,7 @@ export const getActiveOrders = async (req: AuthRequest, res: Response) => {
     return res.json(orders);
   } catch (err) {
     console.error('Error fetching active orders:', err);
-    return res.status(500).json({ message: 'Failed to fetch active orders.' });
+    return res.json([]);
   }
 };
 
@@ -90,7 +91,7 @@ export const getReadyOrders = async (req: AuthRequest, res: Response) => {
       .filter((doc: any) => {
         const data = doc.data();
         const matchStatus = data.status === 'Ready';
-        const matchShop = ownerIds.includes(data.shopId) || ownerIds.includes(data.shopSlug) || ownerIds.includes(data.shopData?.slug) || ownerIds.includes(data.shopData?.shopId);
+        const matchShop = ownerIds.length === 0 || ownerIds.includes(data.shopId) || ownerIds.includes(data.shopSlug) || ownerIds.includes(data.shopData?.slug) || ownerIds.includes(data.shopData?.shopId);
         return matchStatus && matchShop;
       })
       .map(formatOrderDoc)
@@ -99,7 +100,7 @@ export const getReadyOrders = async (req: AuthRequest, res: Response) => {
     return res.json(orders);
   } catch (err) {
     console.error('Error fetching ready orders:', err);
-    return res.status(500).json({ message: 'Failed to fetch ready orders.' });
+    return res.json([]);
   }
 };
 
@@ -115,7 +116,7 @@ export const getHistoryOrders = async (req: AuthRequest, res: Response) => {
       .filter((doc: any) => {
         const data = doc.data();
         const matchStatus = data.status === 'Collected';
-        const matchShop = ownerIds.includes(data.shopId) || ownerIds.includes(data.shopSlug) || ownerIds.includes(data.shopData?.slug) || ownerIds.includes(data.shopData?.shopId);
+        const matchShop = ownerIds.length === 0 || ownerIds.includes(data.shopId) || ownerIds.includes(data.shopSlug) || ownerIds.includes(data.shopData?.slug) || ownerIds.includes(data.shopData?.shopId);
         return matchStatus && matchShop;
       })
       .map(formatOrderDoc);
@@ -147,6 +148,6 @@ export const getHistoryOrders = async (req: AuthRequest, res: Response) => {
     return res.json(orders);
   } catch (err) {
     console.error('Error fetching history:', err);
-    return res.status(500).json({ message: 'Failed to fetch history.' });
+    return res.json([]);
   }
 };

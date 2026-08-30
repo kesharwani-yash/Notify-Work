@@ -58,12 +58,13 @@ export const DashboardLayout: React.FC = () => {
       const readyData = await api.get('/dashboard/ready');
 
       setCounts({
-        pending: pendingData.length,
-        active: activeData.length,
-        ready: readyData.length,
+        pending: Array.isArray(pendingData) ? pendingData.length : 0,
+        active: Array.isArray(activeData) ? activeData.length : 0,
+        ready: Array.isArray(readyData) ? readyData.length : 0,
       });
     } catch (err) {
       console.error('Failed to load dashboard metrics', err);
+      setCounts({ pending: 0, active: 0, ready: 0 });
     }
   };
 

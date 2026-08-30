@@ -30,9 +30,10 @@ export const DashboardReady: React.FC = () => {
     try {
       setLoading(true);
       const data = await api.get('/dashboard/ready');
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -127,7 +128,7 @@ export const DashboardReady: React.FC = () => {
         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Waiting for collection. Send reminder alerts or archive when collected.</p>
       </div>
 
-      {orders.length === 0 ? (
+      {(!Array.isArray(orders) || orders.length === 0) ? (
         <div className="backdrop-blur-md bg-white/70 dark:bg-zinc-900/70 border border-dashed border-zinc-200/80 dark:border-zinc-800 rounded-3xl p-16 text-center shadow-xs">
           <div className="bg-zinc-100 dark:bg-zinc-800 rounded-2xl h-12 w-12 flex items-center justify-center mx-auto mb-4 border border-zinc-200/60 dark:border-zinc-700">
             <Inbox className="h-6 w-6 text-zinc-400" />
@@ -138,7 +139,7 @@ export const DashboardReady: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <AnimatePresence mode="popLayout">
-            {orders.map(order => {
+            {(Array.isArray(orders) ? orders : []).map(order => {
               const isHighlighted = order._id === highlightId;
               return (
                 <motion.div

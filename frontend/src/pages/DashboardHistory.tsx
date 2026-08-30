@@ -37,9 +37,10 @@ export const DashboardHistory: React.FC = () => {
         query = `?startDate=${startDate}&endDate=${endDate}`;
       }
       const data = await api.get(`/dashboard/history${query}`);
-      setOrders(data);
+      setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load history:', err);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -69,14 +70,18 @@ export const DashboardHistory: React.FC = () => {
     setLoading(true);
     api.get('/dashboard/history')
       .then(data => {
-        setOrders(data);
+        setOrders(Array.isArray(data) ? data : []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setOrders([]);
+        setLoading(false);
+      });
   };
 
-  const totalWeight = orders.reduce((sum, o) => sum + o.weight, 0);
-  const totalOrders = orders.length;
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const totalWeight = safeOrders.reduce((sum, o) => sum + (typeof o.weight === 'number' ? o.weight : (parseFloat(o.weight as any) || 0)), 0);
+  const totalOrders = safeOrders.length;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -179,7 +184,7 @@ export const DashboardHistory: React.FC = () => {
           <Loader2 className="h-8 w-8 animate-spin text-emerald-500 mb-2" />
           <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Loading history logs...</span>
         </div>
-      ) : orders.length === 0 ? (
+      ) : safeOrders.length === 0 ? (
         <div className="backdrop-blur-md bg-white/70 dark:bg-zinc-900/70 border border-dashed border-zinc-200/80 dark:border-zinc-800 rounded-3xl p-16 text-center shadow-xs">
           <div className="bg-zinc-100 dark:bg-zinc-800 rounded-2xl h-12 w-12 flex items-center justify-center mx-auto mb-4 border border-zinc-200/60 dark:border-zinc-700">
             <Inbox className="h-6 w-6 text-zinc-400" />
@@ -200,7 +205,7 @@ export const DashboardHistory: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
-                {orders.map(order => {
+                {safeOrders.map(order => {
                   const isHighlighted = order._id === highlightId;
                   return (
                     <tr
