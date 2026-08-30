@@ -3,12 +3,12 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDBXw-da2m7FTfMAF6kzAmPWgKq0AgVcTg",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "notify-work.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "notify-work",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "notify-work.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "234471117279",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:234471117279:web:7f686bfc16e1cd9e03746a",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
 };
 
 // Validate critical keys to prevent silent failures
