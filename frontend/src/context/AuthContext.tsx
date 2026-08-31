@@ -2,15 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import {
   onAuthStateChanged,
   signInWithPopup,
-  signOut,
-  GoogleAuthProvider
+  signOut
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, googleProvider } from '../config/firebase';
 import { api, setAuthToken, clearAuthToken, getAuthToken } from '../services/api';
-import { syncGoogleUserToFirestore } from '../services/authService';
-
-export { syncGoogleUserToFirestore };
 
 interface Shop {
   id: string;
@@ -34,6 +31,36 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export const syncGoogleUserToFirestore = async (user: FirebaseUser) => {
+  const shopRef = doc(db, 'shops', user.uid);
+  const shopSnap = await getDoc(shopRef);
+
+  if (!shopSnap.exists()) {
+    // Generate standard slug from display name or email prefix
+    const baseSlug = (user.displayName || user.email?.split('@')[0] || 'shop')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+    const slug = `${baseSlug}-${Math.floor(10 + Math.random() * 90)}`;
+
+    await setDoc(shopRef, {
+      shopId: user.uid,
+      slug: slug,
+      shopName: `${user.displayName || 'Owner'}'s Shop`,
+      ownerName: user.displayName || 'Owner',
+      email: user.email,
+      phone: user.phoneNumber || '',
+      businessType: 'Flour Mill', // Hardcoded standard
+      address: '',
+      operatingHours: '9:00 AM - 8:00 PM',
+      services: [
+        { name: 'Wheat (Atta)', rate: 5, unit: 'kg' },
+        { name: 'Rice (Chawal)', rate: 8, unit: 'kg' }
+      ],
+      createdAt: serverTimestamp()
+    });
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [token, setTokenState] = useState<string | null>(getAuthToken());
@@ -46,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       setLoading(false);
-    }, 2500);
+    }, 2000);
 
     return () => clearTimeout(timeoutId);
   }, []);
@@ -85,21 +112,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      async (currentUser) => {
+      async (firebaseUser) => {
         if (!isMounted) return;
         try {
-          if (currentUser) {
-            try {
-              await syncGoogleUserToFirestore(currentUser);
-            } catch (syncErr) {
-              console.warn('Firestore user sync warning in auth state listener:', syncErr);
-            }
-
-            const idToken = await currentUser.getIdToken();
+          setUser(firebaseUser);
+          if (firebaseUser) {
+            const idToken = await firebaseUser.getIdToken();
             setAuthToken(idToken);
             setTokenState(idToken);
-            setUser(currentUser);
-
             if (!skipFetchRef.current) {
               await fetchProfile();
             } else {
@@ -109,21 +129,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             clearAuthToken();
             setShop(null);
             setTokenState(null);
-            setUser(null);
           }
         } catch (e) {
           console.error('Error in onAuthStateChanged:', e);
         } finally {
-          if (isMounted) {
-            setLoading(false);
-          }
+          if (isMounted) setLoading(false);
         }
       },
       (error) => {
         console.error('Firebase Auth Listener Error:', error);
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     );
 
@@ -133,65 +148,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const loginWithGoogle = async (): Promise<FirebaseUser> => {
-    setLoading(true);
+  const loginWithGoogle = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-
-      const result = await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
-      skipFetchRef.current = true;
+      // Check or initialize shop document in Firestore
+      await syncGoogleUserToFirestore(user);
+
       const idToken = await user.getIdToken();
       setAuthToken(idToken);
       setTokenState(idToken);
       setUser(user);
 
-      // Synchronize Firestore shop profile
       try {
-        await syncGoogleUserToFirestore(user);
-      } catch (syncErr) {
-        console.warn('Direct Firestore sync caught:', syncErr);
-      }
-
-      // Synchronize backend database record
-      try {
-        const res = await api.post('/auth/google', {
+        await api.post('/auth/google', {
           email: user.email,
           displayName: user.displayName,
           firebaseUid: user.uid
         });
-        if (res?.shop) {
-          setShop(res.shop);
-        }
-      } catch (backendErr) {
-        console.warn('Backend sync fallback warning:', backendErr);
+      } catch (e) {
+        // Fallback or non-blocking
       }
 
       await fetchProfile();
       return user;
-    } catch (error: any) {
-      // Check if user is actually authenticated despite popup close event
-      if (auth.currentUser) {
-        const currentUser = auth.currentUser;
-        setUser(currentUser);
-        const idToken = await currentUser.getIdToken();
-        setAuthToken(idToken);
-        setTokenState(idToken);
-        try {
-          await syncGoogleUserToFirestore(currentUser);
-        } catch (e) {
-          // ignore
-        }
-        await fetchProfile();
-        return currentUser;
-      }
-
-      console.error('Google Sign-In failed:', error);
+    } catch (error) {
+      console.error("Google Sign-In failed:", error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
