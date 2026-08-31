@@ -25,7 +25,10 @@ router.post('/submit', createOrder);
 router.get('/:id', getOrderById);
 router.post('/:id/subscribe', subscribeCustomerPush);
 
-// Owner protected routes
+// Owner protected routes - Order updates and state transitions
+router.put('/:id', authenticateToken as any, editOrder as any);
+router.patch('/:id', authenticateToken as any, editOrder as any);
+router.put('/:id/edit', authenticateToken as any, editOrder as any);
 router.patch('/:id/edit', authenticateToken as any, editOrder as any);
 router.patch('/:id/accept', authenticateToken as any, acceptOrder as any);
 router.patch('/:id/reject', authenticateToken as any, rejectOrder as any);

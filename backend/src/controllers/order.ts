@@ -307,7 +307,10 @@ export const rejectOrder = async (req: AuthRequest, res: Response) => {
 export const editOrder = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, phone, item, weight, remarks } = req.body;
+    if (!id || id === 'undefined' || id === 'null') {
+      return res.status(400).json({ message: 'Order ID is required.' });
+    }
+    const { name, phone, item, weight, remarks, status } = req.body;
 
     const orderRef = db.collection('orders').doc(id);
     const docSnap = await orderRef.get();
@@ -331,6 +334,7 @@ export const editOrder = async (req: AuthRequest, res: Response) => {
     if (remarks !== undefined) updateFields.remarks = remarks;
     if (name !== undefined) updateFields['customerData.name'] = name;
     if (phone !== undefined) updateFields['customerData.phone'] = phone;
+    if (status !== undefined) updateFields.status = status;
 
     await orderRef.update(updateFields);
 
@@ -339,7 +343,7 @@ export const editOrder = async (req: AuthRequest, res: Response) => {
 
     wsService.emitOrderUpdate(id, formatted);
 
-    return res.json({ message: 'Order updated successfully.', order: formatted });
+    return res.status(200).json({ message: 'Order updated successfully.', order: formatted });
   } catch (err) {
     console.error('Error editing order:', err);
     return res.status(500).json({ message: 'Failed to update order details.' });

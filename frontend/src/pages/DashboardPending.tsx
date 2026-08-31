@@ -198,9 +198,16 @@ export const DashboardPending: React.FC = () => {
     e.preventDefault();
     if (!editingOrder) return;
 
+    const orderId = (editingOrder as any)?._id || (editingOrder as any)?.id || (editingOrder as any)?.orderId;
+    if (!orderId) {
+      console.error("Order ID is missing, cannot update.");
+      alert('Order ID is missing, cannot update.');
+      return;
+    }
+
     try {
       setSavingEdit(true);
-      await api.put(`/orders/${editingOrder._id}`, {
+      await api.put(`/orders/${orderId}`, {
         name: editName,
         phone: editPhone,
         item: editItem,
@@ -210,7 +217,7 @@ export const DashboardPending: React.FC = () => {
 
       setOrders(prev =>
         prev.map(o =>
-          o._id === editingOrder._id
+          (o._id === orderId || (o as any).id === orderId)
             ? {
                 ...o,
                 item: editItem,
