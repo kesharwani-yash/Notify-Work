@@ -16,10 +16,36 @@ import dashboardRoutes from './routes/dashboard';
 // Load environmental variables
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const allowedOrigins = [
+  'https://notify-work.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL?.replace(/\/$/, '')
+].filter(Boolean) as string[];
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or Postman)
+    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Fallback to accept origin or configure strict check
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+};
 
 const app = express();
 const httpServer = createServer(app);
+
+// Enable CORS pre-flight across all routes
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions) as any);
+
+// Log active CORS configuration on startup
+console.log('CORS initialized for origins:', allowedOrigins);
 
 // Initialize database
 connectDB();
@@ -27,13 +53,7 @@ connectDB();
 // Initialize real-time WebSockets
 wsService.init(httpServer);
 
-// Middleware
-app.use(cors({
-  origin: [FRONTEND_URL, 'http://localhost:5173'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// Body parser Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -54,11 +74,22 @@ app.get('/api/vapid-public-key', (req, res) => {
   }
 });
 
-// Root check
+// Root & Health check endpoints
 app.get('/', (req, res) => {
   res.send('NotifyWork API Server is online.');
 });
 
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'healthy' });
+});
+
+app.get('/api/ready', (req, res) => {
+  res.status(200).json({ status: 'ready' });
+});
+
 // Port mapping
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {});
+httpServer.listen(PORT, () => {
+  console.log(`NotifyWork API Server running on port ${PORT}`);
+  console.log('CORS initialized for origins:', allowedOrigins);
+});

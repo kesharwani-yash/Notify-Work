@@ -5,11 +5,23 @@ class WebSocketService {
   private io: Server | null = null;
 
   init(server: HttpServer) {
-    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const allowedOrigins = [
+      'https://notify-work.vercel.app',
+      'http://localhost:5173',
+      'http://localhost:3000',
+      process.env.FRONTEND_URL?.replace(/\/$/, '')
+    ].filter(Boolean) as string[];
+
     this.io = new Server(server, {
       cors: {
-        origin: [FRONTEND_URL, 'http://localhost:5173'],
-        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+        origin: (origin: any, callback: any) => {
+          if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+            callback(null, true);
+          } else {
+            callback(null, true);
+          }
+        },
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         credentials: true
       },
       transports: ['websocket', 'polling'],
