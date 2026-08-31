@@ -2,11 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import {
   onAuthStateChanged,
   signInWithPopup,
-  signOut
+  signOut,
+  GoogleAuthProvider
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 import { api, setAuthToken, clearAuthToken, getAuthToken } from '../services/api';
 
 interface Shop {
@@ -32,32 +33,40 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const syncGoogleUserToFirestore = async (user: FirebaseUser) => {
-  const shopRef = doc(db, 'shops', user.uid);
-  const shopSnap = await getDoc(shopRef);
+  try {
+    const shopRef = doc(db, 'shops', user.uid);
+    const shopSnap = await getDoc(shopRef);
 
-  if (!shopSnap.exists()) {
-    // Generate standard slug from display name or email prefix
-    const baseSlug = (user.displayName || user.email?.split('@')[0] || 'shop')
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '');
-    const slug = `${baseSlug}-${Math.floor(10 + Math.random() * 90)}`;
+    if (!shopSnap.exists()) {
+      // Generate standard slug from display name or email prefix
+      const baseSlug = (user.displayName || user.email?.split('@')[0] || 'shop')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+      const slug = `${baseSlug}-${Math.floor(10 + Math.random() * 90)}`;
 
-    await setDoc(shopRef, {
-      shopId: user.uid,
-      slug: slug,
-      shopName: `${user.displayName || 'Owner'}'s Shop`,
-      ownerName: user.displayName || 'Owner',
-      email: user.email,
-      phone: user.phoneNumber || '',
-      businessType: 'Flour Mill', // Hardcoded standard
-      address: '',
-      operatingHours: '9:00 AM - 8:00 PM',
-      services: [
-        { name: 'Wheat (Atta)', rate: 5, unit: 'kg' },
-        { name: 'Rice (Chawal)', rate: 8, unit: 'kg' }
-      ],
-      createdAt: serverTimestamp()
-    });
+      await setDoc(
+        shopRef,
+        {
+          shopId: user.uid,
+          slug: slug,
+          shopName: `${user.displayName || 'Owner'}'s Shop`,
+          ownerName: user.displayName || 'Owner',
+          email: user.email,
+          phone: user.phoneNumber || '',
+          businessType: 'Flour Mill', // Hardcoded standard
+          address: '',
+          operatingHours: '9:00 AM - 8:00 PM',
+          services: [
+            { name: 'Wheat (Atta)', rate: 5, unit: 'kg' },
+            { name: 'Rice (Chawal)', rate: 8, unit: 'kg' }
+          ],
+          createdAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+    }
+  } catch (firestoreErr) {
+    console.warn('Client Firestore direct sync skipped, falling back to backend sync:', firestoreErr);
   }
 };
 
@@ -149,33 +158,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loginWithGoogle = async () => {
+    setLoading(true);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+
+      const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Check or initialize shop document in Firestore
-      await syncGoogleUserToFirestore(user);
-
+      skipFetchRef.current = true;
       const idToken = await user.getIdToken();
       setAuthToken(idToken);
       setTokenState(idToken);
       setUser(user);
 
+      // 1. Sync Firestore safely
+      await syncGoogleUserToFirestore(user);
+
+      // 2. Sync backend admin database
       try {
-        await api.post('/auth/google', {
+        const res = await api.post('/auth/google', {
           email: user.email,
           displayName: user.displayName,
           firebaseUid: user.uid
         });
-      } catch (e) {
-        // Fallback or non-blocking
+        if (res?.shop) {
+          setShop(res.shop);
+        }
+      } catch (backendErr) {
+        console.warn('Backend sync fallback:', backendErr);
       }
 
       await fetchProfile();
       return user;
-    } catch (error) {
-      console.error("Google Sign-In failed:", error);
+    } catch (error: any) {
+      // Check if user is actually authenticated despite popup close event
+      if (auth.currentUser) {
+        const currentUser = auth.currentUser;
+        setUser(currentUser);
+        const idToken = await currentUser.getIdToken();
+        setAuthToken(idToken);
+        setTokenState(idToken);
+        await syncGoogleUserToFirestore(currentUser);
+        try {
+          await api.post('/auth/google', {
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            firebaseUid: currentUser.uid
+          });
+        } catch (e) {
+          // ignore
+        }
+        await fetchProfile();
+        return currentUser;
+      }
+
+      console.error('Google Sign-In failed:', error);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 

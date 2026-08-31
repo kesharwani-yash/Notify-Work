@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { auth } from '../config/firebase';
+
 export const Login: React.FC = () => {
   const { loginWithGoogle } = useAuth();
   const navigate = useNavigate();
@@ -34,10 +36,16 @@ export const Login: React.FC = () => {
       await loginWithGoogle();
       navigate('/dashboard');
     } catch (err: any) {
+      if (auth.currentUser) {
+        navigate('/dashboard');
+        return;
+      }
       if (err.code === 'auth/popup-closed-by-user') {
-        setError('Google Sign-In popup was closed. Please click below to try again.');
+        setError('Sign-in cancelled. Please click below to choose your Google account.');
       } else if (err.code === 'auth/popup-blocked') {
-        setError('Popup was blocked by your browser. Please allow popups for NotifyWork and retry.');
+        setError('Popup was blocked by your browser. Please allow popups for this site and retry.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('This domain is not authorized in Firebase. Please add this domain to Authorized Domains in Firebase Authentication console.');
       } else {
         setError(err.message || 'Google authentication failed. Please try again.');
       }
