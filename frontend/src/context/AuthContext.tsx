@@ -6,9 +6,11 @@ import {
   GoogleAuthProvider
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { auth } from '../config/firebase';
 import { api, setAuthToken, clearAuthToken, getAuthToken } from '../services/api';
+import { syncGoogleUserToFirestore } from '../services/authService';
+
+export { syncGoogleUserToFirestore };
 
 interface Shop {
   id: string;
@@ -32,44 +34,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const syncGoogleUserToFirestore = async (user: FirebaseUser) => {
-  try {
-    const shopRef = doc(db, 'shops', user.uid);
-    const shopSnap = await getDoc(shopRef);
-
-    if (!shopSnap.exists()) {
-      // Generate standard slug from display name or email prefix
-      const baseSlug = (user.displayName || user.email?.split('@')[0] || 'shop')
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '');
-      const slug = `${baseSlug}-${Math.floor(10 + Math.random() * 90)}`;
-
-      await setDoc(
-        shopRef,
-        {
-          shopId: user.uid,
-          slug: slug,
-          shopName: `${user.displayName || 'Owner'}'s Shop`,
-          ownerName: user.displayName || 'Owner',
-          email: user.email,
-          phone: user.phoneNumber || '',
-          businessType: 'Flour Mill', // Hardcoded standard
-          address: '',
-          operatingHours: '9:00 AM - 8:00 PM',
-          services: [
-            { name: 'Wheat (Atta)', rate: 5, unit: 'kg' },
-            { name: 'Rice (Chawal)', rate: 8, unit: 'kg' }
-          ],
-          createdAt: serverTimestamp()
-        },
-        { merge: true }
-      );
-    }
-  } catch (firestoreErr) {
-    console.warn('Client Firestore direct sync skipped, falling back to backend sync:', firestoreErr);
-  }
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [token, setTokenState] = useState<string | null>(getAuthToken());
@@ -82,7 +46,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       setLoading(false);
-    }, 2000);
+    }, 2500);
 
     return () => clearTimeout(timeoutId);
   }, []);
@@ -121,14 +85,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = onAuthStateChanged(
       auth,
-      async (firebaseUser) => {
+      async (currentUser) => {
         if (!isMounted) return;
         try {
-          setUser(firebaseUser);
-          if (firebaseUser) {
-            const idToken = await firebaseUser.getIdToken();
+          if (currentUser) {
+            try {
+              await syncGoogleUserToFirestore(currentUser);
+            } catch (syncErr) {
+              console.warn('Firestore user sync warning in auth state listener:', syncErr);
+            }
+
+            const idToken = await currentUser.getIdToken();
             setAuthToken(idToken);
             setTokenState(idToken);
+            setUser(currentUser);
+
             if (!skipFetchRef.current) {
               await fetchProfile();
             } else {
@@ -138,16 +109,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             clearAuthToken();
             setShop(null);
             setTokenState(null);
+            setUser(null);
           }
         } catch (e) {
           console.error('Error in onAuthStateChanged:', e);
         } finally {
-          if (isMounted) setLoading(false);
+          if (isMounted) {
+            setLoading(false);
+          }
         }
       },
       (error) => {
         console.error('Firebase Auth Listener Error:', error);
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     );
 
@@ -157,7 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (): Promise<FirebaseUser> => {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
@@ -172,10 +148,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setTokenState(idToken);
       setUser(user);
 
-      // 1. Sync Firestore safely
-      await syncGoogleUserToFirestore(user);
+      // Synchronize Firestore shop profile
+      try {
+        await syncGoogleUserToFirestore(user);
+      } catch (syncErr) {
+        console.warn('Direct Firestore sync caught:', syncErr);
+      }
 
-      // 2. Sync backend admin database
+      // Synchronize backend database record
       try {
         const res = await api.post('/auth/google', {
           email: user.email,
@@ -186,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setShop(res.shop);
         }
       } catch (backendErr) {
-        console.warn('Backend sync fallback:', backendErr);
+        console.warn('Backend sync fallback warning:', backendErr);
       }
 
       await fetchProfile();
@@ -199,13 +179,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const idToken = await currentUser.getIdToken();
         setAuthToken(idToken);
         setTokenState(idToken);
-        await syncGoogleUserToFirestore(currentUser);
         try {
-          await api.post('/auth/google', {
-            email: currentUser.email,
-            displayName: currentUser.displayName,
-            firebaseUid: currentUser.uid
-          });
+          await syncGoogleUserToFirestore(currentUser);
         } catch (e) {
           // ignore
         }

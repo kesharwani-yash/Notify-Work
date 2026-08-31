@@ -15,39 +15,40 @@ import {
   ExternalLink,
   Store,
   CheckCircle,
-  HelpCircle
+  HelpCircle,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-import { auth } from '../config/firebase';
 
 export const Login: React.FC = () => {
   const { loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
-  const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleGoogleAuth = async () => {
     if (loading) return;
-    setError('');
     setLoading(true);
+    setErrorMessage(null);
+
     try {
-      await loginWithGoogle();
-      navigate('/dashboard');
-    } catch (err: any) {
-      if (auth.currentUser) {
+      const user = await loginWithGoogle();
+      if (user) {
         navigate('/dashboard');
-        return;
       }
-      if (err.code === 'auth/popup-closed-by-user') {
-        setError('Sign-in cancelled. Please click below to choose your Google account.');
-      } else if (err.code === 'auth/popup-blocked') {
-        setError('Popup was blocked by your browser. Please allow popups for this site and retry.');
-      } else if (err.code === 'auth/unauthorized-domain') {
-        setError('This domain is not authorized in Firebase. Please add this domain to Authorized Domains in Firebase Authentication console.');
+    } catch (err: any) {
+      console.error('Google Auth execution failed:', err);
+      if (err?.code === 'auth/popup-closed-by-user') {
+        setErrorMessage('Sign-in cancelled. Please click below to choose your Google account.');
+      } else if (err?.code === 'auth/popup-blocked') {
+        setErrorMessage('Popup was blocked by your browser. Please allow popups for NotifyWork and retry.');
+      } else if (err?.code === 'auth/unauthorized-domain') {
+        setErrorMessage('This domain is not authorized in Firebase Authentication settings.');
       } else {
-        setError(err.message || 'Google authentication failed. Please try again.');
+        setErrorMessage(
+          err?.message || 'Failed to sign in with Google. Please try again.'
+        );
       }
     } finally {
       setLoading(false);
@@ -228,7 +229,7 @@ export const Login: React.FC = () => {
 
             {/* Error Banner with AnimatePresence */}
             <AnimatePresence mode="wait">
-              {error && (
+              {errorMessage && (
                 <motion.div
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -238,8 +239,8 @@ export const Login: React.FC = () => {
                   role="alert"
                   className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-600 dark:text-rose-400 text-xs font-medium flex items-start gap-2.5"
                 >
-                  <span className="text-sm mt-[-1px]">⚠️</span>
-                  <span className="flex-1 leading-relaxed">{error}</span>
+                  <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+                  <span className="flex-1 leading-relaxed">{errorMessage}</span>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -256,7 +257,7 @@ export const Login: React.FC = () => {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
-                    <span>Connecting to Google…</span>
+                    <span>Signing in with Google…</span>
                   </>
                 ) : (
                   <>
