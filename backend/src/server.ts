@@ -16,6 +16,8 @@ import dashboardRoutes from './routes/dashboard';
 // Load environmental variables
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -27,7 +29,7 @@ wsService.init(httpServer);
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  origin: [FRONTEND_URL, 'http://localhost:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']

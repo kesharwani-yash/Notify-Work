@@ -5,9 +5,10 @@ class WebSocketService {
   private io: Server | null = null;
 
   init(server: HttpServer) {
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
     this.io = new Server(server, {
       cors: {
-        origin: true, // Allow request origin dynamically for seamless dev & prod cross-origin requests
+        origin: [FRONTEND_URL, 'http://localhost:5173'],
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         credentials: true
       },
