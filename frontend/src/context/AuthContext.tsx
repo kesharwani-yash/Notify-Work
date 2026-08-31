@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signInWithPopup,
   signOut
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { auth, googleProvider } from '../config/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, googleProvider } from '../config/firebase';
 import { api, setAuthToken, clearAuthToken, getAuthToken } from '../services/api';
 
 interface Shop {
@@ -25,14 +24,42 @@ interface AuthContextType {
   shop: Shop | null;
   user: FirebaseUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: any) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: () => Promise<FirebaseUser>;
   logout: () => void;
   refreshShop: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const syncGoogleUserToFirestore = async (user: FirebaseUser) => {
+  const shopRef = doc(db, 'shops', user.uid);
+  const shopSnap = await getDoc(shopRef);
+
+  if (!shopSnap.exists()) {
+    // Generate standard slug from display name or email prefix
+    const baseSlug = (user.displayName || user.email?.split('@')[0] || 'shop')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+    const slug = `${baseSlug}-${Math.floor(10 + Math.random() * 90)}`;
+
+    await setDoc(shopRef, {
+      shopId: user.uid,
+      slug: slug,
+      shopName: `${user.displayName || 'Owner'}'s Shop`,
+      ownerName: user.displayName || 'Owner',
+      email: user.email,
+      phone: user.phoneNumber || '',
+      businessType: 'Flour Mill', // Hardcoded standard
+      address: '',
+      operatingHours: '9:00 AM - 8:00 PM',
+      services: [
+        { name: 'Wheat (Atta)', rate: 5, unit: 'kg' },
+        { name: 'Rice (Chawal)', rate: 8, unit: 'kg' }
+      ],
+      createdAt: serverTimestamp()
+    });
+  }
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -121,83 +148,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
-    setLoading(true);
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const idToken = await userCredential.user.getIdToken();
-      skipFetchRef.current = true;
-      setAuthToken(idToken);
-      setTokenState(idToken);
-      setUser(userCredential.user);
-    } catch (e) {
-      const data = await api.post('/auth/login', { email, password });
-      skipFetchRef.current = true;
-      setAuthToken(data.token);
-      setShop(data.shop);
-      setTokenState(data.token);
-    } finally {
-      await fetchProfile();
-      setLoading(false);
-    }
-  };
-
-  const register = async (registerData: any) => {
-    setLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        registerData.email,
-        registerData.password
-      );
-      const idToken = await userCredential.user.getIdToken();
-      skipFetchRef.current = true;
-      setAuthToken(idToken);
-      setTokenState(idToken);
-      setUser(userCredential.user);
-
-      try {
-        const res = await api.post('/auth/register', {
-          ...registerData,
-          firebaseUid: userCredential.user.uid
-        });
-        if (res?.shop) setShop(res.shop);
-      } catch (err) {
-        await fetchProfile();
-      }
-    } catch (e) {
-      const data = await api.post('/auth/register', registerData);
-      skipFetchRef.current = true;
-      setAuthToken(data.token);
-      setShop(data.shop);
-      setTokenState(data.token);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loginWithGoogle = async () => {
-    setLoading(true);
     try {
-      const userCredential = await signInWithPopup(auth, googleProvider);
-      const idToken = await userCredential.user.getIdToken();
-      skipFetchRef.current = true;
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      // Check or initialize shop document in Firestore
+      await syncGoogleUserToFirestore(user);
+
+      const idToken = await user.getIdToken();
       setAuthToken(idToken);
       setTokenState(idToken);
-      setUser(userCredential.user);
+      setUser(user);
 
       try {
-        const res = await api.post('/auth/google', {
-          email: userCredential.user.email,
-          displayName: userCredential.user.displayName,
-          firebaseUid: userCredential.user.uid
+        await api.post('/auth/google', {
+          email: user.email,
+          displayName: user.displayName,
+          firebaseUid: user.uid
         });
-        setShop(res.shop);
-      } catch (err) {
-        await fetchProfile();
+      } catch (e) {
+        // Fallback or non-blocking
       }
-    } finally {
-      setLoading(false);
+
+      await fetchProfile();
+      return user;
+    } catch (error) {
+      console.error("Google Sign-In failed:", error);
+      throw error;
     }
   };
 
@@ -220,7 +198,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ token, shop, user, loading, login, register, loginWithGoogle, logout, refreshShop }}>
+    <AuthContext.Provider value={{ token, shop, user, loading, loginWithGoogle, logout, refreshShop }}>
       {children}
     </AuthContext.Provider>
   );

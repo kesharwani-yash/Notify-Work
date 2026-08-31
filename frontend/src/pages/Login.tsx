@@ -2,84 +2,32 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { Flame, Loader2, ArrowRight, Store, Mail, Lock, Phone, MapPin, Tag } from 'lucide-react';
+import { Flame, Loader2, Sparkles, ShieldCheck, Zap, QrCode, Bell } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { login, register } = useAuth();
+  const { loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
-  const [isRegister, setIsRegister] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Shared fields
-  const [email, setEmail]       = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-
-  // Register-only fields
-  const [shopName,     setShopName]     = useState<string>('');
-  const [shopId,       setShopId]       = useState<string>('');
-  const [phone,        setPhone]        = useState<string>('');
-  const [address,      setAddress]      = useState<string>('');
-  const businessType = 'Flour Mill';
-
-  /** Auto-generate slug from shop name */
-  const handleSlugify = (name?: string) => {
-    setShopId(
-      (name || '')
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-    );
-  };
-
-  /** Typing in any field instantly clears the error banner */
-  const clearError = () => { if (error) setError(''); };
-
-  // ── Submit ────────────────────────────────────────────────────────────────
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleAuth = async () => {
     setError('');
-
-    if (isRegister) {
-      if (!shopName.trim() || !shopId.trim() || !phone.trim() || !address.trim() || !email.trim() || !password.trim()) {
-        setError('All fields are required for registration.');
-        return;
-      }
-    } else {
-      if (!email.trim() || !password.trim()) {
-        setError('Please enter your email and password.');
-        return;
-      }
-    }
-
     setLoading(true);
     try {
-      if (isRegister) {
-        await register({
-          shopId:       shopId.trim(),
-          shopName:     shopName.trim(),
-          phone:        phone.trim(),
-          address:      address.trim(),
-          email:        email.trim(),
-          password:     password.trim(),
-          businessType,
-        });
-      } else {
-        await login(email.trim(), password);
-      }
+      await loginWithGoogle();
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please try again.');
+      if (err.code === 'auth/popup-closed-by-user') {
+        setError('Sign-in cancelled. Please continue with Google to access your dashboard.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('Popup was blocked by your browser. Please allow popups for this site.');
+      } else {
+        setError(err.message || 'Google authentication failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
-  };
-
-  const toggleMode = () => {
-    setIsRegister((prev) => !prev);
-    setError('');
   };
 
   return (
@@ -92,220 +40,118 @@ export const Login: React.FC = () => {
 
       <div className="max-w-md w-full space-y-8">
 
-        {/* Branding */}
+        {/* Branding Header */}
         <div className="text-center">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-xs mb-4">
             <Flame className="w-3.5 h-3.5 fill-current" /> NotifyWork for Businesses
           </div>
           <h1 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-            {isRegister ? 'Create Shop Account' : 'Welcome Back'}
+            Welcome to NotifyWork
           </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2">
-            {isRegister
-              ? 'Register your shop and set up your QR notifications.'
-              : 'Access your owner dashboard and manage active orders.'}
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-2 max-w-sm mx-auto">
+            Manage your shop, generate QR order links, and send instant WhatsApp notifications to customers.
           </p>
         </div>
 
-        {/* Form Card */}
-        <div className="backdrop-blur-md bg-white/70 dark:bg-zinc-900/70 rounded-3xl p-8 border border-zinc-200/60 dark:border-zinc-800/60 shadow-xs transition-colors">
+        {/* Auth Card */}
+        <div className="backdrop-blur-md bg-white/70 dark:bg-zinc-900/70 rounded-3xl p-8 border border-zinc-200/60 dark:border-zinc-800/60 shadow-xl transition-colors space-y-6">
 
           {/* Error banner */}
           {error && (
             <div
               id="auth-error-banner"
               role="alert"
-              className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-600 dark:text-rose-400 text-xs font-medium flex items-start gap-2"
+              className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-600 dark:text-rose-400 text-xs font-medium flex items-start gap-2"
             >
-              <span className="mt-0.5">⚠</span>
+              <span className="mt-0.5">⚠️</span>
               <span>{error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
-
-            {/* ── Register-only fields ── */}
-            {isRegister && (
-              <>
-                {/* Shop Name */}
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                    Shop Name
-                  </label>
-                  <div className="relative">
-                    <Store className="absolute left-4 top-3.5 h-4 w-4 text-zinc-400" />
-                    <input
-                      id="reg-shopname"
-                      type="text"
-                      placeholder="e.g. Sharma Flour Mill"
-                      value={shopName}
-                      onChange={(e) => {
-                        setShopName(e.target.value);
-                        handleSlugify(e.target.value);
-                        clearError();
-                      }}
-                      className="w-full pl-11 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl text-xs font-semibold text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:bg-white dark:focus:bg-zinc-800 transition-all"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Slug */}
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                    Custom Shop URL Slug
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-3.5 text-xs font-semibold text-zinc-400">/shop/</span>
-                    <input
-                      id="reg-shopid"
-                      type="text"
-                      value={shopId}
-                      onChange={(e) => {
-                        setShopId(e.target.value.toLowerCase().replace(/\s+/g, '-'));
-                        clearError();
-                      }}
-                      className="w-full pl-16 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-white dark:focus:bg-zinc-800 transition-all"
-                      required
-                    />
-                  </div>
-                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1">This will be your custom QR code scanner path.</p>
-                </div>
-
-                {/* Business Type */}
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                    Business Type
-                  </label>
-                  <div className="relative">
-                    <Tag className="absolute left-4 top-3.5 h-4 w-4 text-zinc-400" />
-                    <input
-                      id="reg-business"
-                      type="text"
-                      value="Flour Mill"
-                      disabled
-                      readOnly
-                      className="w-full pl-11 pr-4 py-3 bg-zinc-100 dark:bg-zinc-800/30 border border-zinc-200/50 dark:border-zinc-800 rounded-xl text-xs font-semibold text-zinc-500 dark:text-zinc-400 cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-
-                {/* Phone */}
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                    Business Phone
-                  </label>
-                  <div className="relative">
-                    <Phone className="absolute left-4 top-3.5 h-4 w-4 text-zinc-400" />
-                    <input
-                      id="reg-phone"
-                      type="tel"
-                      placeholder="e.g. +91 9876543210"
-                      value={phone}
-                      onChange={(e) => { setPhone(e.target.value); clearError(); }}
-                      className="w-full pl-11 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-white dark:focus:bg-zinc-800 transition-all"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Address */}
-                <div>
-                  <label className="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                    Address
-                  </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-4 top-3.5 h-4 w-4 text-zinc-400" />
-                    <input
-                      id="reg-address"
-                      type="text"
-                      placeholder="e.g. 12, Main Bazar Road"
-                      value={address}
-                      onChange={(e) => { setAddress(e.target.value); clearError(); }}
-                      className="w-full pl-11 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-white dark:focus:bg-zinc-800 transition-all"
-                      required
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* ── Shared fields (Email + Password) ── */}
-            <div>
-              <label className="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-3.5 h-4 w-4 text-zinc-400" />
-                <input
-                  id="auth-email"
-                  type="email"
-                  placeholder="e.g. owner@flourmill.com"
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); clearError(); }}
-                  className="w-full pl-11 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-white dark:focus:bg-zinc-800 transition-all"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-4 top-3.5 h-4 w-4 text-zinc-400" />
-                <input
-                  id="auth-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); clearError(); }}
-                  className="w-full pl-11 pr-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/80 rounded-xl text-xs font-semibold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:bg-white dark:focus:bg-zinc-800 transition-all"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Submit Button */}
+          {/* Google Sign-in Button */}
+          <div className="space-y-4">
             <button
-              id="auth-submit-btn"
-              type="submit"
+              id="google-auth-btn"
+              type="button"
+              onClick={handleGoogleAuth}
               disabled={loading}
-              className="w-full mt-2 inline-flex items-center justify-center gap-2 px-6 py-3.5
-                         bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-70
-                         text-white dark:text-zinc-900 rounded-xl text-xs font-bold shadow-xs
-                         transition-all active:scale-[0.98] cursor-pointer"
+              className="w-full flex items-center justify-center gap-3 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl p-3.5 text-zinc-800 dark:text-zinc-100 font-semibold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/60 transition-all shadow-sm active:scale-[0.99] disabled:opacity-60 cursor-pointer"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {isRegister ? 'Creating your shop…' : 'Logging you in…'}
+                  <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
+                  <span>Connecting to Google…</span>
                 </>
               ) : (
                 <>
-                  {isRegister ? 'Register & Open Shop' : 'Login Dashboard'}
-                  <ArrowRight className="w-4 h-4" />
+                  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                    />
+                  </svg>
+                  <span>Continue with Google</span>
                 </>
               )}
             </button>
-          </form>
 
-          {/* Toggle Login ↔ Register */}
-          <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800 text-center">
-            <button
-              id="auth-toggle-btn"
-              type="button"
-              onClick={toggleMode}
-              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline transition-all cursor-pointer"
-            >
-              {isRegister
-                ? 'Already have a shop? Sign in here'
-                : 'Register a new business shop account'}
-            </button>
+            <div className="flex items-center gap-2 text-center text-[11px] text-zinc-400 dark:text-zinc-500 justify-center">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <span>Fast & secure single sign-on powered by Google</span>
+            </div>
           </div>
+
+          {/* Value Highlights */}
+          <div className="pt-6 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+              What you get with NotifyWork
+            </p>
+            <div className="grid grid-cols-1 gap-2.5 text-xs text-zinc-600 dark:text-zinc-300">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500">
+                  <QrCode className="w-3.5 h-3.5" />
+                </div>
+                <span>Instant QR code storefront & order submission</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500">
+                  <Bell className="w-3.5 h-3.5" />
+                </div>
+                <span>Automated WhatsApp completion notifications</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500">
+                  <Zap className="w-3.5 h-3.5" />
+                </div>
+                <span>Real-time live queue and business order tracking</span>
+              </div>
+            </div>
+          </div>
+
         </div>
+
+        {/* Footer Note */}
+        <div className="text-center">
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 inline-flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-amber-500" />
+            No password required • Automatic shop workspace setup
+          </p>
+        </div>
+
       </div>
     </div>
   );
 };
+export default Login;
