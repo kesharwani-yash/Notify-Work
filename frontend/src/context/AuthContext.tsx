@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import {
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut
 } from 'firebase/auth';
 import type { User as FirebaseUser } from 'firebase/auth';
@@ -24,7 +26,9 @@ interface AuthContextType {
   shop: Shop | null;
   user: FirebaseUser | null;
   loading: boolean;
-  loginWithGoogle: () => Promise<FirebaseUser>;
+  authError: string | null;
+  clearAuthError: () => void;
+  loginWithGoogle: () => Promise<FirebaseUser | void>;
   logout: () => void;
   refreshShop: () => Promise<void>;
 }
@@ -66,14 +70,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setTokenState] = useState<string | null>(getAuthToken());
   const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const skipFetchRef = useRef<boolean>(false);
+
+  const clearAuthError = () => {
+    setAuthError(null);
+  };
 
   // Safety fallback timeout to ensure loading is never stuck
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       setLoading(false);
-    }, 2000);
+    }, 2500);
 
     return () => clearTimeout(timeoutId);
   }, []);
@@ -106,9 +115,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Synchronize Firebase auth state listener safely
+  const syncUserSession = async (firebaseUser: FirebaseUser) => {
+    const idToken = await firebaseUser.getIdToken();
+    setAuthToken(idToken);
+    setTokenState(idToken);
+    setUser(firebaseUser);
+
+    try {
+      await syncGoogleUserToFirestore(firebaseUser);
+    } catch (firestoreErr) {
+      console.warn('Firestore sync info:', firestoreErr);
+    }
+
+    try {
+      await api.post('/auth/google', {
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        firebaseUid: firebaseUser.uid
+      });
+    } catch {
+      // Non-blocking fallback
+    }
+
+    return await fetchProfile();
+  };
+
+  // Synchronize Firebase auth state listener and process redirect results safely
   useEffect(() => {
     let isMounted = true;
+
+    // Check if the user is returning from a signInWithRedirect operation
+    getRedirectResult(auth)
+      .then(async (credential) => {
+        if (!isMounted) return;
+        if (credential && credential.user) {
+          try {
+            await syncUserSession(credential.user);
+          } catch (e) {
+            console.error('Error synchronizing redirect user session:', e);
+          }
+        }
+      })
+      .catch((err: any) => {
+        if (!isMounted) return;
+        console.error('Firebase getRedirectResult error:', err);
+        let msg = 'Google Sign-In redirect failed.';
+        if (err.code === 'auth/unauthorized-domain') {
+          msg = 'This domain is not authorized in Firebase Console. Please add it to Authorized Domains in Firebase Auth settings.';
+        } else if (err.code === 'auth/network-request-failed') {
+          msg = 'Network connection issue. Please check your internet connection.';
+        } else if (err.message) {
+          msg = err.message;
+        }
+        setAuthError(msg);
+      });
 
     const unsubscribe = onAuthStateChanged(
       auth,
@@ -148,32 +208,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (): Promise<FirebaseUser | void> => {
+    setAuthError(null);
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
-      // Check or initialize shop document in Firestore
-      await syncGoogleUserToFirestore(user);
-
-      const idToken = await user.getIdToken();
-      setAuthToken(idToken);
-      setTokenState(idToken);
-      setUser(user);
-
-      try {
-        await api.post('/auth/google', {
-          email: user.email,
-          displayName: user.displayName,
-          firebaseUid: user.uid
-        });
-      } catch (e) {
-        // Fallback or non-blocking
+      await syncUserSession(user);
+      return user;
+    } catch (error: any) {
+      // Check if popup was blocked by browser or popup is not supported in the environment
+      if (
+        error.code === 'auth/popup-blocked' ||
+        error.code === 'auth/cancelled-popup-request' ||
+        error.code === 'auth/operation-not-supported-in-this-environment'
+      ) {
+        console.warn('Popup blocked or unsupported, falling back to signInWithRedirect...', error.code);
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr: any) {
+          console.error('signInWithRedirect failed:', redirectErr);
+          setAuthError(redirectErr.message || 'Redirect sign-in failed');
+          throw redirectErr;
+        }
       }
 
-      await fetchProfile();
-      return user;
-    } catch (error) {
       console.error("Google Sign-In failed:", error);
       throw error;
     }
@@ -198,7 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ token, shop, user, loading, loginWithGoogle, logout, refreshShop }}>
+    <AuthContext.Provider value={{ token, shop, user, loading, authError, clearAuthError, loginWithGoogle, logout, refreshShop }}>
       {children}
     </AuthContext.Provider>
   );

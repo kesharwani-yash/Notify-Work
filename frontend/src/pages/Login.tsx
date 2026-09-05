@@ -1,31 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { Flame, Loader2, Sparkles, ShieldCheck, Zap, QrCode, Bell } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, authError, clearAuthError } = useAuth();
   const navigate = useNavigate();
 
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
+  // Sync any auth errors from Firebase redirect or context
+  useEffect(() => {
+    if (authError) {
+      setError(authError);
+    }
+  }, [authError]);
+
   const handleGoogleAuth = async () => {
     setError('');
+    if (clearAuthError) clearAuthError();
     setLoading(true);
     try {
-      await loginWithGoogle();
-      navigate('/dashboard');
+      const user = await loginWithGoogle();
+      if (user) {
+        navigate('/dashboard');
+      }
+      // If user is undefined, redirect is currently processing and page will navigate
     } catch (err: any) {
       if (err.code === 'auth/popup-closed-by-user') {
         setError('Sign-in cancelled. Please continue with Google to access your dashboard.');
       } else if (err.code === 'auth/popup-blocked') {
-        setError('Popup was blocked by your browser. Please allow popups for this site.');
+        setError('Popup was blocked by your browser. Redirecting to Google Sign-In...');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('This domain is not authorized in Firebase Console. Please add your domain to Authorized Domains in Firebase Authentication Settings.');
+      } else if (err.code === 'auth/network-request-failed') {
+        setError('Network error. Please check your internet connection and try again.');
+      } else if (err.code === 'auth/user-disabled') {
+        setError('This user account has been disabled. Please contact support.');
       } else {
         setError(err.message || 'Google authentication failed. Please try again.');
       }
-    } finally {
       setLoading(false);
     }
   };
